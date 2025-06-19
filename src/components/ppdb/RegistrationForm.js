@@ -2,6 +2,7 @@
 
 import { useState, useRef, useEffect } from "react";
 import { toast } from "react-toastify";
+import Swal from "sweetalert2";
 
 export default function RegistrationForm({
   selectedPackage,
@@ -13,7 +14,10 @@ export default function RegistrationForm({
   const [showFileWarningModal, setShowFileWarningModal] = useState(false);
   const [hasScrolled, setHasScrolled] = useState(false);
   const [isAgreed, setIsAgreed] = useState(false);
+  const [fileErrors, setFileErrors] = useState({});
+  const [errors, setErrors] = useState({});
   const modalContentRef = useRef(null);
+  const inputRefs = useRef({});
   const [formData, setFormData] = useState({
     // Step 1
     nama: "",
@@ -24,10 +28,10 @@ export default function RegistrationForm({
     noWhatsApp: "",
     email: "",
     namaOrtu: "",
+    nisn: "",
     // Step 2
     asalSekolah: "",
     kelasTerakhir: "",
-    rapotFile: null,
     aktaKelahiran: null,
     kartuKeluarga: null,
     ktp: null,
@@ -52,26 +56,203 @@ export default function RegistrationForm({
       ...prev,
       [fieldName]: null,
     }));
+    setFileErrors((prev) => ({
+      ...prev,
+      [fieldName]: null,
+    }));
+  };
+
+  const validateFileSize = (file, fieldName) => {
+    // Maximum file size (12MB in bytes)
+    const MAX_FILE_SIZE = 12 * 1024 * 1024;
+
+    if (file && file.size > MAX_FILE_SIZE) {
+      setFileErrors((prev) => ({
+        ...prev,
+        [fieldName]: `Ukuran file melebihi batas maksimum 12MB`,
+      }));
+      return false;
+    }
+
+    setFileErrors((prev) => ({
+      ...prev,
+      [fieldName]: null,
+    }));
+    return true;
   };
 
   const handleChange = (e) => {
     const { name, value, files } = e.target;
-    setFormData((prev) => ({
-      ...prev,
-      [name]: files ? files[0] : value,
-    }));
+
+    if (files && files[0]) {
+      const file = files[0];
+
+      // Validate file size
+      if (validateFileSize(file, name)) {
+        setFormData((prev) => ({
+          ...prev,
+          [name]: file,
+        }));
+      } else {
+        // Reset file input if validation fails
+        e.target.value = null;
+      }
+    } else {
+      setFormData((prev) => ({
+        ...prev,
+        [name]: value,
+      }));
+    }
+  };
+
+  const validateForm = () => {
+    const newErrors = {};
+    const requiredFields = {
+      // Step 1
+      nama: "Nama Lengkap",
+      nisn: "NISN",
+      tempatLahir: "Tempat Lahir",
+      tanggalLahir: "Tanggal Lahir",
+      jenisKelamin: "Jenis Kelamin",
+      alamat: "Alamat Lengkap",
+      noWhatsApp: "Nomor WhatsApp",
+      email: "Email",
+      namaOrtu: "Nama Orang Tua/Wali",
+      // Step 2
+      asalSekolah: "Asal Sekolah",
+      kelasTerakhir: "Kelas Terakhir",
+    };
+
+    // Validate required fields
+    let isValid = true;
+    let firstEmptyField = null;
+
+    Object.keys(requiredFields).forEach((field) => {
+      if (!formData[field] || formData[field].trim() === "") {
+        newErrors[field] = `${requiredFields[field]} wajib diisi`;
+        isValid = false;
+        if (!firstEmptyField) {
+          firstEmptyField = field;
+        }
+      }
+    });
+
+    setErrors(newErrors);
+
+    if (!isValid && firstEmptyField) {
+      // Show SweetAlert with the list of empty fields
+      const emptyFieldsList = Object.keys(newErrors)
+        .map((field) => requiredFields[field])
+        .join(", ");
+
+      Swal.fire({
+        title: "Form Belum Lengkap",
+        text: `Silakan lengkapi field berikut: ${emptyFieldsList}`,
+        icon: "warning",
+        confirmButtonText: "OK",
+      }).then(() => {
+        // Focus on the first empty field
+        if (
+          currentStep === 1 &&
+          [
+            "nama",
+            "nisn",
+            "tempatLahir",
+            "tanggalLahir",
+            "jenisKelamin",
+            "alamat",
+            "noWhatsApp",
+            "email",
+            "namaOrtu",
+          ].includes(firstEmptyField)
+        ) {
+          setTimeout(() => {
+            if (inputRefs.current[firstEmptyField]) {
+              inputRefs.current[firstEmptyField].focus();
+            }
+          }, 100);
+        } else if (
+          currentStep === 2 &&
+          ["asalSekolah", "kelasTerakhir"].includes(firstEmptyField)
+        ) {
+          setTimeout(() => {
+            if (inputRefs.current[firstEmptyField]) {
+              inputRefs.current[firstEmptyField].focus();
+            }
+          }, 100);
+        } else {
+          // If the empty field is in a different step, switch to that step
+          if (
+            currentStep === 2 &&
+            [
+              "nama",
+              "nisn",
+              "tempatLahir",
+              "tanggalLahir",
+              "jenisKelamin",
+              "alamat",
+              "noWhatsApp",
+              "email",
+              "namaOrtu",
+            ].includes(firstEmptyField)
+          ) {
+            setCurrentStep(1);
+            setTimeout(() => {
+              if (inputRefs.current[firstEmptyField]) {
+                inputRefs.current[firstEmptyField].focus();
+              }
+            }, 100);
+          } else if (
+            currentStep === 1 &&
+            ["asalSekolah", "kelasTerakhir"].includes(firstEmptyField)
+          ) {
+            setCurrentStep(2);
+            setTimeout(() => {
+              if (inputRefs.current[firstEmptyField]) {
+                inputRefs.current[firstEmptyField].focus();
+              }
+            }, 100);
+          }
+        }
+      });
+    }
+
+    return isValid;
   };
 
   const handleSubmit = (e) => {
     e.preventDefault();
+
+    // Validate form first
+    if (!validateForm()) {
+      return;
+    }
+
     const fileInputs = [
       "aktaKelahiran",
       "kartuKeluarga",
       "ktp",
       "ijazahTerakhir",
-      "suratPindah",
     ];
+
+    if (isTransferStudent) {
+      fileInputs.push("suratPindah");
+    }
+
     const hasEmptyFile = fileInputs.some((input) => !formData[input]);
+
+    // Check if there are any file errors
+    const hasFileErrors = Object.values(fileErrors).some(
+      (error) => error !== null && error !== undefined
+    );
+
+    if (hasFileErrors) {
+      toast.error(
+        "Ada kesalahan pada file yang diunggah. Periksa kembali ukuran file."
+      );
+      return;
+    }
+
     if (hasEmptyFile) {
       setShowFileWarningModal(true);
     } else {
@@ -95,21 +276,51 @@ export default function RegistrationForm({
   const handleFinalSubmit = async () => {
     if (isAgreed) {
       try {
+        // Create FormData object
+        const submitFormData = new FormData();
+
+        // Add text fields
+        Object.keys(formData).forEach((key) => {
+          if (formData[key] !== null) {
+            if (
+              key === "aktaKelahiran" ||
+              key === "kartuKeluarga" ||
+              key === "ktp" ||
+              key === "ijazahTerakhir" ||
+              key === "suratPindah"
+            ) {
+              if (formData[key] instanceof File) {
+                submitFormData.append(key, formData[key]);
+              }
+            } else {
+              // Pastikan nilai string tidak undefined
+              const value = formData[key] || "";
+              submitFormData.append(key, value);
+            }
+          }
+        });
+
+        // Pastikan NISN selalu disertakan
+        if (!submitFormData.has("nisn")) {
+          submitFormData.append("nisn", formData.nisn || "");
+        }
+
+        // Add additional fields
+        submitFormData.append("isTransferStudent", isTransferStudent);
+        submitFormData.append("selectedPackage", selectedPackage);
+
+        // Log FormData untuk debugging
+        console.log("Form data yang dikirim:");
+        for (const pair of submitFormData.entries()) {
+          console.log(pair[0] + ": " + pair[1]);
+        }
+
         const response = await fetch("/api/ppdb", {
           method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            ...formData,
-            isTransferStudent,
-            selectedPackage,
-          }),
+          body: submitFormData, // Send as FormData instead of JSON
         });
-        console.log("response", response);
 
         const data = await response.json();
-        console.log(data);
 
         if (!response.ok) {
           throw new Error(
@@ -130,9 +341,9 @@ export default function RegistrationForm({
           noWhatsApp: "",
           email: "",
           namaOrtu: "",
+          nisn: "",
           asalSekolah: "",
           kelasTerakhir: "",
-          rapotFile: null,
           aktaKelahiran: null,
           kartuKeluarga: null,
           ktp: null,
@@ -144,6 +355,7 @@ export default function RegistrationForm({
         setCurrentStep(1);
         setIsAgreed(false);
         setHasScrolled(false);
+        setFileErrors({});
       } catch (error) {
         console.error("Form submission error:", error);
         toast.error(
@@ -159,12 +371,158 @@ export default function RegistrationForm({
   };
 
   const nextStep = () => {
+    // Validate step 1 fields before proceeding to step 2
+    const step1Fields = [
+      "nama",
+      "nisn",
+      "tempatLahir",
+      "tanggalLahir",
+      "jenisKelamin",
+      "alamat",
+      "noWhatsApp",
+      "email",
+      "namaOrtu",
+    ];
+    const step1Errors = {};
+    let isValid = true;
+    let firstEmptyField = null;
+
+    step1Fields.forEach((field) => {
+      if (!formData[field] || formData[field].trim() === "") {
+        const fieldLabels = {
+          nama: "Nama Lengkap",
+          nisn: "NISN",
+          tempatLahir: "Tempat Lahir",
+          tanggalLahir: "Tanggal Lahir",
+          jenisKelamin: "Jenis Kelamin",
+          alamat: "Alamat Lengkap",
+          noWhatsApp: "Nomor WhatsApp",
+          email: "Email",
+          namaOrtu: "Nama Orang Tua/Wali",
+        };
+
+        step1Errors[field] = `${fieldLabels[field]} wajib diisi`;
+        isValid = false;
+        if (!firstEmptyField) {
+          firstEmptyField = field;
+        }
+      }
+    });
+
+    if (!isValid) {
+      setErrors(step1Errors);
+      // Show SweetAlert with the list of empty fields
+      const emptyFieldsList = Object.keys(step1Errors)
+        .map((field) => {
+          const fieldLabels = {
+            nama: "Nama Lengkap",
+            nisn: "NISN",
+            tempatLahir: "Tempat Lahir",
+            tanggalLahir: "Tanggal Lahir",
+            jenisKelamin: "Jenis Kelamin",
+            alamat: "Alamat Lengkap",
+            noWhatsApp: "Nomor WhatsApp",
+            email: "Email",
+            namaOrtu: "Nama Orang Tua/Wali",
+          };
+          return fieldLabels[field];
+        })
+        .join(", ");
+
+      Swal.fire({
+        title: "Form Belum Lengkap",
+        text: `Silakan lengkapi field berikut: ${emptyFieldsList}`,
+        icon: "warning",
+        confirmButtonText: "OK",
+      }).then(() => {
+        // Focus on the first empty field
+        setTimeout(() => {
+          if (inputRefs.current[firstEmptyField]) {
+            inputRefs.current[firstEmptyField].focus();
+          }
+        }, 100);
+      });
+      return;
+    }
+
     setCurrentStep(2);
   };
 
   const prevStep = () => {
     setCurrentStep(1);
   };
+
+  const renderFileUploadField = (fieldName, label) => (
+    <div className="relative">
+      <label className="block text-base font-medium text-gray-700 mb-2">
+        {label} (PDF)
+      </label>
+      <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-500 transition-colors">
+        <div className="space-y-1 text-center w-full">
+          {formData[fieldName] ? (
+            <div className="relative">
+              <div className="flex items-center justify-between bg-gray-50 p-2 rounded">
+                <span className="text-sm text-gray-600 truncate max-w-[80%]">
+                  {formData[fieldName].name}
+                </span>
+                <button
+                  type="button"
+                  onClick={() => handleFileDelete(fieldName)}
+                  className="text-red-500 hover:text-red-700"
+                >
+                  <svg
+                    xmlns="http://www.w3.org/2000/svg"
+                    className="h-5 w-5"
+                    viewBox="0 0 20 20"
+                    fill="currentColor"
+                  >
+                    <path
+                      fillRule="evenodd"
+                      d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
+                      clipRule="evenodd"
+                    />
+                  </svg>
+                </button>
+              </div>
+            </div>
+          ) : (
+            <>
+              <svg
+                className="mx-auto h-12 w-12 text-gray-400"
+                stroke="currentColor"
+                fill="none"
+                viewBox="0 0 48 48"
+              >
+                <path
+                  d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                  strokeWidth="2"
+                  strokeLinecap="round"
+                  strokeLinejoin="round"
+                />
+              </svg>
+              <div className="flex text-sm text-gray-600">
+                <label className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500">
+                  <span>Upload file</span>
+                  <input
+                    type="file"
+                    name={fieldName}
+                    onChange={handleChange}
+                    accept=".pdf"
+                    className="sr-only"
+                  />
+                </label>
+                <p className="pl-1">atau drag and drop</p>
+              </div>
+              <p className="text-xs text-gray-500">PDF, maksimal 12MB</p>
+            </>
+          )}
+          {fileErrors[fieldName] && (
+            <p className="text-sm text-red-600 mt-1">{fileErrors[fieldName]}</p>
+          )}
+        </div>
+      </div>
+    </div>
+  );
 
   const renderStep1 = () => (
     <>
@@ -207,9 +565,37 @@ export default function RegistrationForm({
             name="nama"
             value={formData.nama}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+              errors.nama ? "border-red-500" : ""
+            }`}
+            ref={(el) => (inputRefs.current.nama = el)}
             required
           />
+          {errors.nama && (
+            <p className="mt-1 text-sm text-red-600">{errors.nama}</p>
+          )}
+        </div>
+
+        <div>
+          <label className="block text-base font-medium text-gray-700 mb-2">
+            NISN (Nomor Induk Siswa Nasional){" "}
+            <span className="text-red-600">*</span>
+          </label>
+          <input
+            type="text"
+            name="nisn"
+            value={formData.nisn || ""}
+            onChange={handleChange}
+            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+              errors.nisn ? "border-red-500" : ""
+            }`}
+            placeholder="Masukkan NISN Anda"
+            ref={(el) => (inputRefs.current.nisn = el)}
+            required
+          />
+          {errors.nisn && (
+            <p className="mt-1 text-sm text-red-600">{errors.nisn}</p>
+          )}
         </div>
 
         <div>
@@ -221,9 +607,15 @@ export default function RegistrationForm({
             name="tempatLahir"
             value={formData.tempatLahir}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+              errors.tempatLahir ? "border-red-500" : ""
+            }`}
+            ref={(el) => (inputRefs.current.tempatLahir = el)}
             required
           />
+          {errors.tempatLahir && (
+            <p className="mt-1 text-sm text-red-600">{errors.tempatLahir}</p>
+          )}
         </div>
 
         <div>
@@ -235,9 +627,15 @@ export default function RegistrationForm({
             name="tanggalLahir"
             value={formData.tanggalLahir}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+              errors.tanggalLahir ? "border-red-500" : ""
+            }`}
+            ref={(el) => (inputRefs.current.tanggalLahir = el)}
             required
           />
+          {errors.tanggalLahir && (
+            <p className="mt-1 text-sm text-red-600">{errors.tanggalLahir}</p>
+          )}
         </div>
 
         <div>
@@ -248,13 +646,19 @@ export default function RegistrationForm({
             name="jenisKelamin"
             value={formData.jenisKelamin}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+              errors.jenisKelamin ? "border-red-500" : ""
+            }`}
+            ref={(el) => (inputRefs.current.jenisKelamin = el)}
             required
           >
             <option value="">Pilih Jenis Kelamin</option>
             <option value="Laki-laki">Laki-laki</option>
             <option value="Perempuan">Perempuan</option>
           </select>
+          {errors.jenisKelamin && (
+            <p className="mt-1 text-sm text-red-600">{errors.jenisKelamin}</p>
+          )}
         </div>
 
         <div className="md:col-span-2">
@@ -266,9 +670,15 @@ export default function RegistrationForm({
             value={formData.alamat}
             onChange={handleChange}
             rows={4}
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+              errors.alamat ? "border-red-500" : ""
+            }`}
+            ref={(el) => (inputRefs.current.alamat = el)}
             required
           />
+          {errors.alamat && (
+            <p className="mt-1 text-sm text-red-600">{errors.alamat}</p>
+          )}
         </div>
 
         <div>
@@ -280,9 +690,15 @@ export default function RegistrationForm({
             name="noWhatsApp"
             value={formData.noWhatsApp}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+              errors.noWhatsApp ? "border-red-500" : ""
+            }`}
+            ref={(el) => (inputRefs.current.noWhatsApp = el)}
             required
           />
+          {errors.noWhatsApp && (
+            <p className="mt-1 text-sm text-red-600">{errors.noWhatsApp}</p>
+          )}
         </div>
 
         <div>
@@ -294,9 +710,15 @@ export default function RegistrationForm({
             name="email"
             value={formData.email}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+              errors.email ? "border-red-500" : ""
+            }`}
+            ref={(el) => (inputRefs.current.email = el)}
             required
           />
+          {errors.email && (
+            <p className="mt-1 text-sm text-red-600">{errors.email}</p>
+          )}
         </div>
 
         <div>
@@ -308,9 +730,15 @@ export default function RegistrationForm({
             name="namaOrtu"
             value={formData.namaOrtu}
             onChange={handleChange}
-            className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+            className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+              errors.namaOrtu ? "border-red-500" : ""
+            }`}
+            ref={(el) => (inputRefs.current.namaOrtu = el)}
             required
           />
+          {errors.namaOrtu && (
+            <p className="mt-1 text-sm text-red-600">{errors.namaOrtu}</p>
+          )}
         </div>
       </div>
 
@@ -344,9 +772,17 @@ export default function RegistrationForm({
                 name="asalSekolah"
                 value={formData.asalSekolah}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+                className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+                  errors.asalSekolah ? "border-red-500" : ""
+                }`}
+                ref={(el) => (inputRefs.current.asalSekolah = el)}
                 required
               />
+              {errors.asalSekolah && (
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.asalSekolah}
+                </p>
+              )}
             </div>
 
             <div>
@@ -358,9 +794,17 @@ export default function RegistrationForm({
                 name="kelasTerakhir"
                 value={formData.kelasTerakhir}
                 onChange={handleChange}
-                className="mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black"
+                className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+                  errors.kelasTerakhir ? "border-red-500" : ""
+                }`}
+                ref={(el) => (inputRefs.current.kelasTerakhir = el)}
                 required
               />
+              {errors.kelasTerakhir && (
+                <p className="mt-1 text-sm text-red-600">
+                  {errors.kelasTerakhir}
+                </p>
+              )}
             </div>
           </div>
         </div>
@@ -395,344 +839,13 @@ export default function RegistrationForm({
           <h3 className="text-xl font-medium text-gray-900">Upload Dokumen</h3>
 
           <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div className="relative">
-              <label className="block text-base font-medium text-gray-700 mb-2">
-                Akta Kelahiran (PDF)
-              </label>
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-500 transition-colors">
-                <div className="space-y-1 text-center w-full">
-                  {formData.aktaKelahiran ? (
-                    <div className="relative">
-                      <div className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                        <span className="text-sm text-gray-600 truncate max-w-[80%]">
-                          {formData.aktaKelahiran.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleFileDelete("aktaKelahiran")}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <svg
-                        className="mx-auto h-12 w-12 text-gray-400"
-                        stroke="currentColor"
-                        fill="none"
-                        viewBox="0 0 48 48"
-                      >
-                        <path
-                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <div className="flex text-sm text-gray-600">
-                        <label className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500">
-                          <span>Upload file</span>
-                          <input
-                            type="file"
-                            name="aktaKelahiran"
-                            onChange={handleChange}
-                            accept=".pdf"
-                            className="sr-only"
-                          />
-                        </label>
-                        <p className="pl-1">atau drag and drop</p>
-                      </div>
-                      <p className="text-xs text-gray-500">PDF, maksimal 2MB</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
+            {renderFileUploadField("aktaKelahiran", "Akta Kelahiran")}
+            {renderFileUploadField("kartuKeluarga", "Kartu Keluarga")}
+            {renderFileUploadField("ktp", "KTP")}
+            {renderFileUploadField("ijazahTerakhir", "Ijazah Terakhir")}
 
-            <div className="relative">
-              <label className="block text-base font-medium text-gray-700 mb-2">
-                Kartu Keluarga (PDF)
-              </label>
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-500 transition-colors">
-                <div className="space-y-1 text-center w-full">
-                  {formData.kartuKeluarga ? (
-                    <div className="relative">
-                      <div className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                        <span className="text-sm text-gray-600 truncate max-w-[80%]">
-                          {formData.kartuKeluarga.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleFileDelete("kartuKeluarga")}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <svg
-                        className="mx-auto h-12 w-12 text-gray-400"
-                        stroke="currentColor"
-                        fill="none"
-                        viewBox="0 0 48 48"
-                      >
-                        <path
-                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <div className="flex text-sm text-gray-600">
-                        <label className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500">
-                          <span>Upload file</span>
-                          <input
-                            type="file"
-                            name="kartuKeluarga"
-                            onChange={handleChange}
-                            accept=".pdf"
-                            className="sr-only"
-                          />
-                        </label>
-                        <p className="pl-1">atau drag and drop</p>
-                      </div>
-                      <p className="text-xs text-gray-500">PDF, maksimal 2MB</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="relative">
-              <label className="block text-base font-medium text-gray-700 mb-2">
-                KTP (PDF)
-              </label>
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-500 transition-colors">
-                <div className="space-y-1 text-center w-full">
-                  {formData.ktp ? (
-                    <div className="relative">
-                      <div className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                        <span className="text-sm text-gray-600 truncate max-w-[80%]">
-                          {formData.ktp.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleFileDelete("ktp")}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <svg
-                        className="mx-auto h-12 w-12 text-gray-400"
-                        stroke="currentColor"
-                        fill="none"
-                        viewBox="0 0 48 48"
-                      >
-                        <path
-                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <div className="flex text-sm text-gray-600">
-                        <label className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500">
-                          <span>Upload file</span>
-                          <input
-                            type="file"
-                            name="ktp"
-                            onChange={handleChange}
-                            accept=".pdf"
-                            className="sr-only"
-                          />
-                        </label>
-                        <p className="pl-1">atau drag and drop</p>
-                      </div>
-                      <p className="text-xs text-gray-500">PDF, maksimal 2MB</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            <div className="relative">
-              <label className="block text-base font-medium text-gray-700 mb-2">
-                Ijazah Terakhir (PDF)
-              </label>
-              <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-500 transition-colors">
-                <div className="space-y-1 text-center w-full">
-                  {formData.ijazahTerakhir ? (
-                    <div className="relative">
-                      <div className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                        <span className="text-sm text-gray-600 truncate max-w-[80%]">
-                          {formData.ijazahTerakhir.name}
-                        </span>
-                        <button
-                          type="button"
-                          onClick={() => handleFileDelete("ijazahTerakhir")}
-                          className="text-red-500 hover:text-red-700"
-                        >
-                          <svg
-                            xmlns="http://www.w3.org/2000/svg"
-                            className="h-5 w-5"
-                            viewBox="0 0 20 20"
-                            fill="currentColor"
-                          >
-                            <path
-                              fillRule="evenodd"
-                              d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                              clipRule="evenodd"
-                            />
-                          </svg>
-                        </button>
-                      </div>
-                    </div>
-                  ) : (
-                    <>
-                      <svg
-                        className="mx-auto h-12 w-12 text-gray-400"
-                        stroke="currentColor"
-                        fill="none"
-                        viewBox="0 0 48 48"
-                      >
-                        <path
-                          d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                          strokeWidth="2"
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                        />
-                      </svg>
-                      <div className="flex text-sm text-gray-600">
-                        <label className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500">
-                          <span>Upload file</span>
-                          <input
-                            type="file"
-                            name="ijazahTerakhir"
-                            onChange={handleChange}
-                            accept=".pdf"
-                            className="sr-only"
-                          />
-                        </label>
-                        <p className="pl-1">atau drag and drop</p>
-                      </div>
-                      <p className="text-xs text-gray-500">PDF, maksimal 2MB</p>
-                    </>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {isTransferStudent && (
-              <div className="relative">
-                <label className="block text-base font-medium text-gray-700 mb-2">
-                  Surat Keterangan Pindah (PDF)
-                </label>
-                <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-lg hover:border-blue-500 transition-colors">
-                  <div className="space-y-1 text-center w-full">
-                    {formData.suratPindah ? (
-                      <div className="relative">
-                        <div className="flex items-center justify-between bg-gray-50 p-2 rounded">
-                          <span className="text-sm text-gray-600 truncate max-w-[80%]">
-                            {formData.suratPindah.name}
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => handleFileDelete("suratPindah")}
-                            className="text-red-500 hover:text-red-700"
-                          >
-                            <svg
-                              xmlns="http://www.w3.org/2000/svg"
-                              className="h-5 w-5"
-                              viewBox="0 0 20 20"
-                              fill="currentColor"
-                            >
-                              <path
-                                fillRule="evenodd"
-                                d="M9 2a1 1 0 00-.894.553L7.382 4H4a1 1 0 000 2v10a2 2 0 002 2h8a2 2 0 002-2V6a1 1 0 100-2h-3.382l-.724-1.447A1 1 0 0011 2H9zM7 8a1 1 0 012 0v6a1 1 0 11-2 0V8zm5-1a1 1 0 00-1 1v6a1 1 0 102 0V8a1 1 0 00-1-1z"
-                                clipRule="evenodd"
-                              />
-                            </svg>
-                          </button>
-                        </div>
-                      </div>
-                    ) : (
-                      <>
-                        <svg
-                          className="mx-auto h-12 w-12 text-gray-400"
-                          stroke="currentColor"
-                          fill="none"
-                          viewBox="0 0 48 48"
-                        >
-                          <path
-                            d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
-                            strokeWidth="2"
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                          />
-                        </svg>
-                        <div className="flex text-sm text-gray-600">
-                          <label className="relative cursor-pointer rounded-md font-medium text-blue-600 hover:text-blue-500">
-                            <span>Upload file</span>
-                            <input
-                              type="file"
-                              name="suratPindah"
-                              onChange={handleChange}
-                              accept=".pdf"
-                              className="sr-only"
-                            />
-                          </label>
-                          <p className="pl-1">atau drag and drop</p>
-                        </div>
-                        <p className="text-xs text-gray-500">
-                          PDF, maksimal 2MB
-                        </p>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            )}
+            {isTransferStudent &&
+              renderFileUploadField("suratPindah", "Surat Keterangan Pindah")}
           </div>
         </div>
       </div>

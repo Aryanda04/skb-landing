@@ -7,6 +7,11 @@ const ppdbFormSchema = new mongoose.Schema({
     required: [true, "Nama lengkap wajib diisi"],
     trim: true,
   },
+  nisn: {
+    type: String,
+    trim: true,
+    index: true,
+  },
   tempatLahir: {
     type: String,
     required: [true, "Tempat lahir wajib diisi"],
@@ -59,26 +64,56 @@ const ppdbFormSchema = new mongoose.Schema({
     default: false,
   },
 
-  // Documents
+  // Documents as Binary Storage
   aktaKelahiran: {
-    type: String, // URL to stored file
-    required: false,
+    filename: String,
+    contentType: String,
+    data: Buffer,
+    size: Number,
+    uploadDate: {
+      type: Date,
+      default: Date.now,
+    },
   },
   kartuKeluarga: {
-    type: String, // URL to stored file
-    required: false,
+    filename: String,
+    contentType: String,
+    data: Buffer,
+    size: Number,
+    uploadDate: {
+      type: Date,
+      default: Date.now,
+    },
   },
   ktp: {
-    type: String, // URL to stored file
-    required: false,
+    filename: String,
+    contentType: String,
+    data: Buffer,
+    size: Number,
+    uploadDate: {
+      type: Date,
+      default: Date.now,
+    },
   },
   ijazahTerakhir: {
-    type: String, // URL to stored file
-    required: false,
+    filename: String,
+    contentType: String,
+    data: Buffer,
+    size: Number,
+    uploadDate: {
+      type: Date,
+      default: Date.now,
+    },
   },
   suratPindah: {
-    type: String, // URL to stored file
-    required: false,
+    filename: String,
+    contentType: String,
+    data: Buffer,
+    size: Number,
+    uploadDate: {
+      type: Date,
+      default: Date.now,
+    },
   },
 
   // Package Selection

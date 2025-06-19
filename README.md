@@ -34,3 +34,41 @@ You can check out [the Next.js GitHub repository](https://github.com/vercel/next
 The easiest way to deploy your Next.js app is to use the [Vercel Platform](https://vercel.com/new?utm_medium=default-template&filter=next.js&utm_source=create-next-app&utm_campaign=create-next-app-readme) from the creators of Next.js.
 
 Check out our [Next.js deployment documentation](https://nextjs.org/docs/app/building-your-application/deploying) for more details.
+
+# Situs Web SKB Belitung
+
+Situs web resmi untuk UPT SPNF SKB Belitung.
+
+## Fitur Upload File BSON ke MongoDB
+
+Sistem ini mendukung upload file langsung ke MongoDB dalam format BSON, dengan ketentuan:
+
+1. **Batas ukuran file**: Maksimal 12MB per file
+2. **Format file yang didukung**: PDF
+3. **Dokumen yang dapat diupload**:
+   - Akta Kelahiran
+   - Kartu Keluarga
+   - KTP
+   - Ijazah Terakhir
+   - Surat Keterangan Pindah (untuk siswa mutasi)
+
+### Cara Kerja
+
+1. File diunggah melalui `FormData` di sisi klien
+2. File diubah menjadi `Buffer` dan disimpan dalam database bersama metadata (nama file, tipe konten, ukuran, dll)
+3. API endpoint khusus digunakan untuk mengambil file dari database
+4. Admin dapat melihat dan mendownload file langsung dari panel admin
+
+### Endpoints API
+
+- `POST /api/ppdb` - Mendaftarkan peserta baru dengan file dokumen
+- `GET /api/ppdb` - Mendapatkan daftar semua peserta (tanpa binary data)
+- `GET /api/ppdb/[id]` - Mendapatkan detail peserta (tanpa binary data)
+- `GET /api/ppdb/[id]?file=namaFile` - Mendownload file dokumen tertentu
+- `PATCH /api/ppdb/[id]` - Memperbarui status peserta
+
+## Teknologi
+
+- Next.js
+- MongoDB
+- TailwindCSS

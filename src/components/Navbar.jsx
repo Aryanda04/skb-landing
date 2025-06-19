@@ -3,18 +3,21 @@ import { useState, useEffect } from "react";
 import Link from "next/link";
 import Image from "next/image";
 
-const Navbar = () => {
-  const [isScrolled, setIsScrolled] = useState(false);
+const Navbar = ({ forceScrolled = false }) => {
+  const [isScrolled, setIsScrolled] = useState(forceScrolled);
   const [isDropdownOpen, setIsDropdownOpen] = useState(false);
 
   useEffect(() => {
     const handleScroll = () => {
-      setIsScrolled(window.scrollY > 0);
+      setIsScrolled(window.scrollY > 0 || forceScrolled);
     };
+
+    // Set initial state
+    setIsScrolled(window.scrollY > 0 || forceScrolled);
 
     window.addEventListener("scroll", handleScroll);
     return () => window.removeEventListener("scroll", handleScroll);
-  }, []);
+  }, [forceScrolled]);
 
   return (
     <nav
@@ -55,7 +58,7 @@ const Navbar = () => {
           {/* Desktop Menu */}
           <div className="hidden md:flex items-center space-x-8">
             <Link
-              href="#tentang"
+              href="/#tentang"
               className={`${
                 isScrolled ? "text-gray-800" : "text-white"
               } hover:text-[#2563eb] transition-colors`}
@@ -64,7 +67,7 @@ const Navbar = () => {
             </Link>
 
             <Link
-              href="#program"
+              href="/#program"
               className={`${
                 isScrolled ? "text-gray-800" : "text-white"
               } hover:text-[#2563eb] transition-colors`}
@@ -73,7 +76,7 @@ const Navbar = () => {
             </Link>
 
             <Link
-              href="#berita"
+              href="/#berita"
               className={`${
                 isScrolled ? "text-gray-800" : "text-white"
               } hover:text-[#2563eb] transition-colors`}
@@ -82,7 +85,7 @@ const Navbar = () => {
             </Link>
 
             <Link
-              href="#galeri"
+              href="/#galeri"
               className={`${
                 isScrolled ? "text-gray-800" : "text-white"
               } hover:text-[#2563eb] transition-colors`}
@@ -131,7 +134,7 @@ const Navbar = () => {
             </div>
 
             <Link
-              href="#kontak"
+              href="/#kontak"
               className={`${
                 isScrolled ? "text-gray-800" : "text-white"
               } hover:text-[#2563eb] transition-colors`}
@@ -167,28 +170,28 @@ const Navbar = () => {
         {isDropdownOpen && (
           <div className="md:hidden bg-white shadow-lg rounded-lg mt-2 py-2">
             <Link
-              href="#tentang"
+              href="/#tentang"
               className="block px-4 py-2 text-gray-800 hover:bg-gray-100"
               onClick={() => setIsDropdownOpen(false)}
             >
               Tentang Kami
             </Link>
             <Link
-              href="#program"
+              href="/#program"
               className="block px-4 py-2 text-gray-800 hover:bg-gray-100"
               onClick={() => setIsDropdownOpen(false)}
             >
               Program
             </Link>
             <Link
-              href="#berita"
+              href="/#berita"
               className="block px-4 py-2 text-gray-800 hover:bg-gray-100"
               onClick={() => setIsDropdownOpen(false)}
             >
               Berita
             </Link>
             <Link
-              href="#galeri"
+              href="/#galeri"
               className="block px-4 py-2 text-gray-800 hover:bg-gray-100"
               onClick={() => setIsDropdownOpen(false)}
             >
@@ -214,7 +217,7 @@ const Navbar = () => {
               </div>
             </div>
             <Link
-              href="#kontak"
+              href="/#kontak"
               className="block px-4 py-2 text-gray-800 hover:bg-gray-100"
               onClick={() => setIsDropdownOpen(false)}
             >
