@@ -56,7 +56,6 @@ const ppdbFormSchema = new mongoose.Schema({
   },
   kelasTerakhir: {
     type: String,
-    required: [true, "Kelas terakhir wajib diisi"],
     trim: true,
   },
   isTransferStudent: {
@@ -106,6 +105,16 @@ const ppdbFormSchema = new mongoose.Schema({
     },
   },
   suratPindah: {
+    filename: String,
+    contentType: String,
+    data: Buffer,
+    size: Number,
+    uploadDate: {
+      type: Date,
+      default: Date.now,
+    },
+  },
+  rapot: {
     filename: String,
     contentType: String,
     data: Buffer,

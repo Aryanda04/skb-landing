@@ -5,11 +5,13 @@ import { useRouter } from "next/navigation";
 import { toast } from "react-toastify";
 import Link from "next/link";
 
-export default function AdminLogin() {
+export default function AdminRegister() {
   const router = useRouter();
   const [formData, setFormData] = useState({
     username: "",
+    email: "",
     password: "",
+    confirmPassword: "",
   });
   const [isLoading, setIsLoading] = useState(false);
 
@@ -25,26 +27,40 @@ export default function AdminLogin() {
     e.preventDefault();
     setIsLoading(true);
 
+    // Validasi password
+    if (formData.password !== formData.confirmPassword) {
+      toast.error("Password tidak cocok!");
+      setIsLoading(false);
+      return;
+    }
+
+    if (formData.password.length < 6) {
+      toast.error("Password minimal 6 karakter!");
+      setIsLoading(false);
+      return;
+    }
+
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await fetch("/api/auth/register", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
         },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({
+          username: formData.username,
+          email: formData.email,
+          password: formData.password,
+          role: "admin",
+        }),
       });
 
       const data = await response.json();
 
       if (response.ok) {
-        // Store auth token and user data
-        localStorage.setItem("adminToken", data.token);
-        localStorage.setItem("adminUser", JSON.stringify(data.user));
-
-        toast.success("Login berhasil!");
-        router.push("/admin");
+        toast.success("Registrasi berhasil! Silakan login.");
+        router.push("/admin/login");
       } else {
-        throw new Error(data.message || "Login gagal");
+        throw new Error(data.message || "Registrasi gagal");
       }
     } catch (error) {
       toast.error(error.message);
@@ -58,10 +74,10 @@ export default function AdminLogin() {
       <div className="max-w-md w-full space-y-8">
         <div>
           <h2 className="mt-6 text-center text-3xl font-extrabold text-gray-900">
-            Admin Login
+            Registrasi Admin
           </h2>
           <p className="mt-2 text-center text-sm text-gray-600">
-            Masuk ke panel admin
+            Buat akun admin baru
           </p>
         </div>
         <form className="mt-8 space-y-6" onSubmit={handleSubmit}>
@@ -82,6 +98,21 @@ export default function AdminLogin() {
               />
             </div>
             <div>
+              <label htmlFor="email" className="sr-only">
+                Email
+              </label>
+              <input
+                id="email"
+                name="email"
+                type="email"
+                required
+                value={formData.email}
+                onChange={handleChange}
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Email"
+              />
+            </div>
+            <div>
               <label htmlFor="password" className="sr-only">
                 Password
               </label>
@@ -92,8 +123,23 @@ export default function AdminLogin() {
                 required
                 value={formData.password}
                 onChange={handleChange}
-                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
                 placeholder="Password"
+              />
+            </div>
+            <div>
+              <label htmlFor="confirmPassword" className="sr-only">
+                Konfirmasi Password
+              </label>
+              <input
+                id="confirmPassword"
+                name="confirmPassword"
+                type="password"
+                required
+                value={formData.confirmPassword}
+                onChange={handleChange}
+                className="appearance-none rounded-none relative block w-full px-3 py-2 border border-gray-300 placeholder-gray-500 text-gray-900 rounded-b-md focus:outline-none focus:ring-blue-500 focus:border-blue-500 focus:z-10 sm:text-sm"
+                placeholder="Konfirmasi Password"
               />
             </div>
           </div>
@@ -130,17 +176,17 @@ export default function AdminLogin() {
                   ></path>
                 </svg>
               ) : (
-                "Masuk"
+                "Daftar"
               )}
             </button>
           </div>
 
           <div className="text-center">
             <Link
-              href="/admin/register"
+              href="/admin/login"
               className="text-sm text-blue-600 hover:text-blue-500"
             >
-              Belum punya akun? Daftar di sini
+              Sudah punya akun? Login di sini
             </Link>
           </div>
         </form>

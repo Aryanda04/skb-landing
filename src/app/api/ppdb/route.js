@@ -57,6 +57,7 @@ export async function POST(request) {
       ktp: formEntries.ktp ? "File tersedia" : undefined,
       ijazahTerakhir: formEntries.ijazahTerakhir ? "File tersedia" : undefined,
       suratPindah: formEntries.suratPindah ? "File tersedia" : undefined,
+      rapot: formEntries.rapot ? "File tersedia" : undefined,
     });
 
     // Create new PPDB form entry
@@ -123,6 +124,7 @@ export async function GET(request) {
       "ktp.data": 0,
       "ijazahTerakhir.data": 0,
       "suratPindah.data": 0,
+      "rapot.data": 0,
     }).sort({ createdAt: -1 });
 
     // Transform response to include file information but not the actual binary data
@@ -136,6 +138,7 @@ export async function GET(request) {
         "ktp",
         "ijazahTerakhir",
         "suratPindah",
+        "rapot",
       ];
       documentFields.forEach((field) => {
         if (formObj[field] && formObj[field].filename) {

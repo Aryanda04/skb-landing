@@ -37,6 +37,7 @@ export default function RegistrationForm({
     ktp: null,
     ijazahTerakhir: null,
     suratPindah: null,
+    rapot: null,
   });
 
   useEffect(() => {
@@ -120,8 +121,12 @@ export default function RegistrationForm({
       namaOrtu: "Nama Orang Tua/Wali",
       // Step 2
       asalSekolah: "Asal Sekolah",
-      kelasTerakhir: "Kelas Terakhir",
     };
+
+    // Add kelasTerakhir only if it's a transfer student
+    if (isTransferStudent) {
+      requiredFields.kelasTerakhir = "Kelas Terakhir";
+    }
 
     // Validate required fields
     let isValid = true;
@@ -235,8 +240,9 @@ export default function RegistrationForm({
       "ijazahTerakhir",
     ];
 
+    // Add transfer student specific files
     if (isTransferStudent) {
-      fileInputs.push("suratPindah");
+      fileInputs.push("suratPindah", "rapot");
     }
 
     const hasEmptyFile = fileInputs.some((input) => !formData[input]);
@@ -287,15 +293,24 @@ export default function RegistrationForm({
               key === "kartuKeluarga" ||
               key === "ktp" ||
               key === "ijazahTerakhir" ||
-              key === "suratPindah"
+              key === "suratPindah" ||
+              key === "rapot"
             ) {
               if (formData[key] instanceof File) {
                 submitFormData.append(key, formData[key]);
               }
             } else {
-              // Pastikan nilai string tidak undefined
-              const value = formData[key] || "";
-              submitFormData.append(key, value);
+              // Handle text fields
+              if (key === "kelasTerakhir") {
+                // Only include kelasTerakhir if it's a transfer student
+                if (isTransferStudent && formData[key].trim() !== "") {
+                  submitFormData.append(key, formData[key]);
+                }
+              } else {
+                // Pastikan nilai string tidak undefined
+                const value = formData[key] || "";
+                submitFormData.append(key, value);
+              }
             }
           }
         });
@@ -349,8 +364,10 @@ export default function RegistrationForm({
           ktp: null,
           ijazahTerakhir: null,
           suratPindah: null,
+          rapot: null,
         });
         setSelectedPackage("");
+        setIsTransferStudent(false);
         setShowModal(false);
         setCurrentStep(1);
         setIsAgreed(false);
@@ -450,6 +467,33 @@ export default function RegistrationForm({
 
   const prevStep = () => {
     setCurrentStep(1);
+  };
+
+  const handleTransferStudentToggle = () => {
+    const newIsTransferStudent = !isTransferStudent;
+    setIsTransferStudent(newIsTransferStudent);
+
+    // Clear transfer student specific fields when switching to non-transfer student
+    if (!newIsTransferStudent) {
+      setFormData((prev) => ({
+        ...prev,
+        kelasTerakhir: "",
+        suratPindah: null,
+        rapot: null,
+      }));
+      // Clear any errors for these fields
+      setErrors((prev) => {
+        const newErrors = { ...prev };
+        delete newErrors.kelasTerakhir;
+        return newErrors;
+      });
+      setFileErrors((prev) => {
+        const newFileErrors = { ...prev };
+        delete newFileErrors.suratPindah;
+        delete newFileErrors.rapot;
+        return newFileErrors;
+      });
+    }
   };
 
   const renderFileUploadField = (fieldName, label) => (
@@ -785,27 +829,29 @@ export default function RegistrationForm({
               )}
             </div>
 
-            <div>
-              <label className="block text-base font-medium text-gray-700 mb-2">
-                Kelas Terakhir <span className="text-red-600">*</span>
-              </label>
-              <input
-                type="text"
-                name="kelasTerakhir"
-                value={formData.kelasTerakhir}
-                onChange={handleChange}
-                className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
-                  errors.kelasTerakhir ? "border-red-500" : ""
-                }`}
-                ref={(el) => (inputRefs.current.kelasTerakhir = el)}
-                required
-              />
-              {errors.kelasTerakhir && (
-                <p className="mt-1 text-sm text-red-600">
-                  {errors.kelasTerakhir}
-                </p>
-              )}
-            </div>
+            {isTransferStudent && (
+              <div>
+                <label className="block text-base font-medium text-gray-700 mb-2">
+                  Kelas Terakhir <span className="text-red-600">*</span>
+                </label>
+                <input
+                  type="text"
+                  name="kelasTerakhir"
+                  value={formData.kelasTerakhir}
+                  onChange={handleChange}
+                  className={`mt-1 block w-full rounded-lg border-gray-300 shadow-sm focus:border-blue-500 focus:ring-blue-500 text-lg py-3 px-4 text-black ${
+                    errors.kelasTerakhir ? "border-red-500" : ""
+                  }`}
+                  ref={(el) => (inputRefs.current.kelasTerakhir = el)}
+                  required
+                />
+                {errors.kelasTerakhir && (
+                  <p className="mt-1 text-sm text-red-600">
+                    {errors.kelasTerakhir}
+                  </p>
+                )}
+              </div>
+            )}
           </div>
         </div>
 
@@ -817,7 +863,7 @@ export default function RegistrationForm({
           <div className="flex items-center">
             <button
               type="button"
-              onClick={() => setIsTransferStudent(!isTransferStudent)}
+              onClick={handleTransferStudentToggle}
               className="relative inline-flex h-8 w-16 items-center rounded-full bg-gray-200"
             >
               <span
@@ -844,8 +890,15 @@ export default function RegistrationForm({
             {renderFileUploadField("ktp", "KTP")}
             {renderFileUploadField("ijazahTerakhir", "Ijazah Terakhir")}
 
-            {isTransferStudent &&
-              renderFileUploadField("suratPindah", "Surat Keterangan Pindah")}
+            {isTransferStudent && (
+              <>
+                {renderFileUploadField(
+                  "suratPindah",
+                  "Surat Keterangan Pindah"
+                )}
+                {renderFileUploadField("rapot", "Rapot")}
+              </>
+            )}
           </div>
         </div>
       </div>

@@ -7,76 +7,73 @@ export async function GET(request, { params }) {
     await ConnectDB();
     const { id } = params;
     const { searchParams } = new URL(request.url);
-    const fileType = searchParams.get("file");
+    const file = searchParams.get("file");
+    const download = searchParams.get("download");
 
-    // Validate if fileType is valid
-    const validFileTypes = [
-      "aktaKelahiran",
-      "kartuKeluarga",
-      "ktp",
-      "ijazahTerakhir",
-      "suratPindah",
-    ];
-    if (fileType && !validFileTypes.includes(fileType)) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Jenis file tidak valid",
-        },
-        { status: 400 }
-      );
-    }
-
-    // Find the form by ID
-    const form = await PPDBForm.findById(id);
-
-    if (!form) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Formulir tidak ditemukan",
-        },
-        { status: 404 }
-      );
-    }
-
-    // If fileType parameter is present, return the file
-    if (fileType) {
-      const file = form[fileType];
-
-      if (!file || !file.data) {
+    if (file) {
+      // Handle file download/view
+      const form = await PPDBForm.findById(id);
+      if (!form) {
         return NextResponse.json(
-          {
-            success: false,
-            message: "File tidak ditemukan",
-          },
+          { success: false, message: "Data tidak ditemukan" },
           { status: 404 }
         );
       }
 
-      // Return file as binary data
-      return new NextResponse(file.data, {
-        headers: {
-          "Content-Type": file.contentType || "application/pdf",
-          "Content-Disposition": `inline; filename="${file.filename}"`,
+      // Check if file exists and has data
+      if (!form[file] || !form[file].filename || !form[file].data) {
+        return NextResponse.json(
+          { success: false, message: "File tidak ditemukan" },
+          { status: 404 }
+        );
+      }
+
+      // If download parameter is true, return the actual file binary
+      if (download === "true") {
+        return new NextResponse(form[file].data, {
+          headers: {
+            "Content-Type": form[file].contentType,
+            "Content-Disposition": `inline; filename="${form[file].filename}"`,
+          },
+        });
+      }
+
+      // Return file metadata for viewing
+      return NextResponse.json({
+        success: true,
+        data: {
+          filename: form[file].filename,
+          contentType: form[file].contentType,
+          size: form[file].size,
+          uploadDate: form[file].uploadDate,
+          hasFile: true,
         },
       });
     }
 
-    // Otherwise return the form data (excluding binary data)
+    // Return form data
+    const form = await PPDBForm.findById(id);
+    if (!form) {
+      return NextResponse.json(
+        { success: false, message: "Data tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    // Transform response to include file information but not the actual binary data
     const formObj = form.toObject();
 
-    // Remove binary data from response
+    // Add hasFile flags for each document
     const documentFields = [
       "aktaKelahiran",
       "kartuKeluarga",
       "ktp",
       "ijazahTerakhir",
       "suratPindah",
+      "rapot",
     ];
     documentFields.forEach((field) => {
-      if (formObj[field] && formObj[field].data) {
-        // Replace binary data with metadata only
+      if (formObj[field] && formObj[field].filename) {
         formObj[field] = {
           hasFile: true,
           filename: formObj[field].filename,
@@ -89,22 +86,46 @@ export async function GET(request, { params }) {
       }
     });
 
-    return NextResponse.json(
-      {
-        success: true,
-        data: formObj,
-      },
-      { status: 200 }
-    );
+    return NextResponse.json({
+      success: true,
+      data: formObj,
+    });
   } catch (error) {
-    console.error("PPDB Form Detail Error:", error);
-
+    console.error("Error fetching PPDB form:", error);
     return NextResponse.json(
-      {
-        success: false,
-        message: "Terjadi kesalahan saat mengambil detail formulir",
-        error: error.message,
+      { success: false, message: "Gagal mengambil data" },
+      { status: 500 }
+    );
+  }
+}
+
+export async function DELETE(request, { params }) {
+  try {
+    await ConnectDB();
+    const { id } = params;
+
+    // Find and delete the PPDB form
+    const deletedForm = await PPDBForm.findByIdAndDelete(id);
+
+    if (!deletedForm) {
+      return NextResponse.json(
+        { success: false, message: "Data tidak ditemukan" },
+        { status: 404 }
+      );
+    }
+
+    return NextResponse.json({
+      success: true,
+      message: "Data berhasil dihapus",
+      data: {
+        _id: deletedForm._id,
+        nama: deletedForm.nama,
       },
+    });
+  } catch (error) {
+    console.error("Error deleting PPDB form:", error);
+    return NextResponse.json(
+      { success: false, message: "Gagal menghapus data" },
       { status: 500 }
     );
   }
@@ -113,52 +134,98 @@ export async function GET(request, { params }) {
 export async function PATCH(request, { params }) {
   try {
     await ConnectDB();
-
     const { id } = params;
-    const formData = await request.json();
 
-    // Find the form by ID
-    const form = await PPDBForm.findById(id);
+    // Check if request is multipart/form-data (file upload)
+    const contentType = request.headers.get("content-type");
 
-    if (!form) {
-      return NextResponse.json(
-        {
-          success: false,
-          message: "Formulir tidak ditemukan",
-        },
-        { status: 404 }
+    if (contentType && contentType.includes("multipart/form-data")) {
+      // Handle file upload
+      const formData = await request.formData();
+      const updateData = {};
+
+      // Process text fields
+      for (const [key, value] of formData.entries()) {
+        if (typeof value === "string") {
+          updateData[key] = value;
+        }
+      }
+
+      // Process files
+      const fileFields = [
+        "aktaKelahiran",
+        "kartuKeluarga",
+        "ktp",
+        "ijazahTerakhir",
+        "suratPindah",
+        "rapot",
+      ];
+
+      for (const field of fileFields) {
+        const file = formData.get(field);
+        if (file && file instanceof File) {
+          // Convert file to buffer
+          const bytes = await file.arrayBuffer();
+          const buffer = Buffer.from(bytes);
+
+          updateData[field] = {
+            data: buffer,
+            filename: file.name,
+            contentType: file.type,
+            size: file.size,
+            uploadDate: new Date(),
+            hasFile: true,
+          };
+        }
+      }
+
+      // Find and update the PPDB form
+      const updatedForm = await PPDBForm.findByIdAndUpdate(
+        id,
+        { $set: updateData },
+        { new: true, runValidators: true }
       );
-    }
 
-    // Update status and other fields
-    if (formData.status) {
-      form.status = formData.status;
-    }
+      if (!updatedForm) {
+        return NextResponse.json(
+          { success: false, message: "Data tidak ditemukan" },
+          { status: 404 }
+        );
+      }
 
-    if (formData.statusKeterangan) {
-      form.statusKeterangan = formData.statusKeterangan;
-    }
-
-    // Save the updated form
-    await form.save();
-
-    return NextResponse.json(
-      {
+      return NextResponse.json({
         success: true,
-        message: "Status formulir berhasil diperbarui",
-        data: form,
-      },
-      { status: 200 }
-    );
-  } catch (error) {
-    console.error("PPDB Form Update Error:", error);
+        message: "Data berhasil diperbarui",
+        data: updatedForm,
+      });
+    } else {
+      // Handle JSON data (status updates)
+      const body = await request.json();
 
+      // Find and update the PPDB form
+      const updatedForm = await PPDBForm.findByIdAndUpdate(
+        id,
+        { $set: body },
+        { new: true, runValidators: true }
+      );
+
+      if (!updatedForm) {
+        return NextResponse.json(
+          { success: false, message: "Data tidak ditemukan" },
+          { status: 404 }
+        );
+      }
+
+      return NextResponse.json({
+        success: true,
+        message: "Data berhasil diperbarui",
+        data: updatedForm,
+      });
+    }
+  } catch (error) {
+    console.error("Error updating PPDB form:", error);
     return NextResponse.json(
-      {
-        success: false,
-        message: "Terjadi kesalahan saat memperbarui status formulir",
-        error: error.message,
-      },
+      { success: false, message: "Gagal memperbarui data" },
       { status: 500 }
     );
   }

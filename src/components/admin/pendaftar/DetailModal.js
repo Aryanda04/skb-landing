@@ -2,10 +2,12 @@
 
 import { useState } from "react";
 import Swal from "sweetalert2";
+import DetailModalEdit from "./DetailModalEdit";
 
 export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
   const [showRejectModal, setShowRejectModal] = useState(false);
   const [showApproveModal, setShowApproveModal] = useState(false);
+  const [showEditModal, setShowEditModal] = useState(false);
   const [rejectReason, setRejectReason] = useState("");
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [loadingFiles, setLoadingFiles] = useState({});
@@ -33,12 +35,58 @@ export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
     { key: "ktp", label: "KTP" },
     { key: "ijazahTerakhir", label: "Ijazah Terakhir" },
     ...(data.isTransferStudent
-      ? [{ key: "suratPindah", label: "Surat Keterangan Pindah" }]
+      ? [
+          { key: "suratPindah", label: "Surat Keterangan Pindah" },
+          { key: "rapot", label: "Rapot" },
+        ]
       : []),
   ];
 
   const isFieldEmpty = (value) => {
     return value === null || value === undefined || value === "";
+  };
+
+  // Check if data is complete for approval
+  const isDataComplete = () => {
+    // Check required fields
+    const missingFields = requiredFields.filter((field) =>
+      isFieldEmpty(data[field.key])
+    );
+
+    // Check required documents
+    const missingDocs = requiredDocuments.filter(
+      (doc) => !data[doc.key]?.hasFile
+    );
+
+    return missingFields.length === 0 && missingDocs.length === 0;
+  };
+
+  // Get missing data description
+  const getMissingDataDescription = () => {
+    const missingFields = requiredFields.filter((field) =>
+      isFieldEmpty(data[field.key])
+    );
+
+    const missingDocs = requiredDocuments.filter(
+      (doc) => !data[doc.key]?.hasFile
+    );
+
+    let description = "";
+
+    if (missingFields.length > 0) {
+      description += `Data yang belum lengkap: ${missingFields
+        .map((f) => f.label)
+        .join(", ")}`;
+    }
+
+    if (missingDocs.length > 0) {
+      if (description) description += "\n";
+      description += `Dokumen yang belum diunggah: ${missingDocs
+        .map((d) => d.label)
+        .join(", ")}`;
+    }
+
+    return description;
   };
 
   const formatFileSize = (bytes) => {
@@ -53,8 +101,11 @@ export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
   const viewDocument = async (docKey) => {
     try {
       setLoadingFiles((prev) => ({ ...prev, [docKey]: true }));
-      // Use the document viewer endpoint
-      window.open(`/api/ppdb/${data._id}?file=${docKey}`, "_blank");
+      // Use the document viewer endpoint with download parameter
+      window.open(
+        `/api/ppdb/${data._id}?file=${docKey}&download=true`,
+        "_blank"
+      );
     } catch (error) {
       console.error(`Error viewing document ${docKey}:`, error);
       Swal.fire({
@@ -64,6 +115,53 @@ export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
       });
     } finally {
       setLoadingFiles((prev) => ({ ...prev, [docKey]: false }));
+    }
+  };
+
+  // Function to delete pendaftar data
+  const handleDeletePendaftar = async () => {
+    const result = await Swal.fire({
+      title: "Konfirmasi Hapus",
+      text: `Apakah Anda yakin ingin menghapus data pendaftar "${data.nama}"?`,
+      icon: "warning",
+      showCancelButton: true,
+      confirmButtonColor: "#d33",
+      cancelButtonColor: "#3085d6",
+      confirmButtonText: "Ya, Hapus!",
+      cancelButtonText: "Batal",
+    });
+
+    if (result.isConfirmed) {
+      try {
+        const response = await fetch(`/api/ppdb/${data._id}`, {
+          method: "DELETE",
+        });
+
+        const responseData = await response.json();
+
+        if (responseData.success) {
+          Swal.fire({
+            title: "Berhasil!",
+            text: "Data pendaftar berhasil dihapus",
+            icon: "success",
+          });
+
+          // Close modal and refresh data
+          if (onStatusChange) {
+            onStatusChange();
+          }
+          onClose();
+        } else {
+          throw new Error(responseData.message);
+        }
+      } catch (error) {
+        console.error("Error deleting pendaftar:", error);
+        Swal.fire({
+          title: "Error",
+          text: "Gagal menghapus data pendaftar",
+          icon: "error",
+        });
+      }
     }
   };
 
@@ -77,6 +175,7 @@ export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
         : status === "incomplete_docs"
         ? "Dokumen Tidak Lengkap"
         : "Ubah Status";
+
     const result = await Swal.fire({
       title: `Konfirmasi ${statusLabel}`,
       text:
@@ -92,7 +191,9 @@ export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
       confirmButtonText: "Ya",
       cancelButtonText: "Batal",
     });
+
     if (!result.isConfirmed) return;
+
     setIsSubmitting(true);
     try {
       const response = await fetch(`/api/ppdb/${data._id}`, {
@@ -127,6 +228,7 @@ export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
     }
     return "";
   }
+
   const waUrl = (() => {
     const msg = getWhatsAppMessage(data);
     if (!msg) return null;
@@ -206,26 +308,66 @@ export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
                           ? "Data Siswa (Siswa Mutasi)"
                           : "Data Siswa"}
                       </h4>
-                      {(data.status === "incomplete_docs" ||
-                        data.status === "rejected" ||
-                        data.status === "approved") &&
-                        waUrl && (
-                          <a
-                            href={waUrl}
-                            target="_blank"
-                            rel="noopener noreferrer"
-                            className="ml-2 p-2 rounded-full hover:bg-green-100 transition cursor-pointer group"
-                            title="Kirim notifikasi via WhatsApp"
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => setShowEditModal(true)}
+                          className="p-2 rounded-full hover:bg-blue-100 transition cursor-pointer group"
+                          title="Edit data peserta"
+                        >
+                          <svg
+                            className="w-5 h-5 text-blue-600 group-hover:text-blue-800"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
                           >
-                            <svg
-                              className="w-5 h-5 text-green-600 group-hover:text-green-800"
-                              fill="currentColor"
-                              viewBox="0 0 24 24"
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                          </svg>
+                        </button>
+                        {(data.status === "incomplete_docs" ||
+                          data.status === "rejected" ||
+                          data.status === "approved") &&
+                          waUrl && (
+                            <a
+                              href={waUrl}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="p-2 rounded-full hover:bg-green-100 transition cursor-pointer group"
+                              title="Kirim notifikasi via WhatsApp"
                             >
-                              <path d="M20.52 3.48A12.07 12.07 0 0012 0C5.37 0 0 5.37 0 12a11.93 11.93 0 001.64 6.06L0 24l6.18-1.62A12.09 12.09 0 0012 24c6.63 0 12-5.37 12-12a11.93 11.93 0 00-3.48-8.52zM12 22a9.93 9.93 0 01-5.1-1.39l-.36-.21-3.67.96.98-3.58-.23-.37A9.94 9.94 0 012 12c0-5.52 4.48-10 10-10s10 4.48 10 10-4.48 10-10 10zm5.2-7.6c-.28-.14-1.65-.81-1.9-.9-.25-.09-.43-.14-.61.14-.18.28-.7.9-.86 1.08-.16.18-.32.2-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.34.42-.51.14-.17.18-.29.28-.48.09-.19.05-.36-.02-.5-.07-.14-.61-1.47-.84-2.01-.22-.53-.45-.46-.62-.47-.16-.01-.36-.01-.56-.01-.19 0-.5.07-.76.34-.26.27-1 1-.98 2.43.02 1.43 1.03 2.81 1.18 3 .15.19 2.03 3.1 4.93 4.23.69.3 1.23.48 1.65.61.69.22 1.32.19 1.82.12.56-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.12-.25-.19-.53-.33z" />
-                            </svg>
-                          </a>
-                        )}
+                              <svg
+                                className="w-5 h-5 text-green-600 group-hover:text-green-800"
+                                fill="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path d="M20.52 3.48A12.07 12.07 0 0012 0C5.37 0 0 5.37 0 12a11.93 11.93 0 001.64 6.06L0 24l6.18-1.62A12.09 12.09 0 0012 24c6.63 0 12-5.37 12-12a11.93 11.93 0 00-3.48-8.52zM12 22a9.93 9.93 0 01-5.1-1.39l-.36-.21-3.67.96.98-3.58-.23-.37A9.94 9.94 0 012 12c0-5.52 4.48-10 10-10s10 4.48 10 10-4.48 10-10 10zm5.2-7.6c-.28-.14-1.65-.81-1.9-.9-.25-.09-.43-.14-.61.14-.18.28-.7.9-.86 1.08-.16.18-.32.2-.6.07-.28-.14-1.18-.44-2.25-1.4-.83-.74-1.39-1.65-1.55-1.93-.16-.28-.02-.43.12-.57.13-.13.28-.34.42-.51.14-.17.18-.29.28-.48.09-.19.05-.36-.02-.5-.07-.14-.61-1.47-.84-2.01-.22-.53-.45-.46-.62-.47-.16-.01-.36-.01-.56-.01-.19 0-.5.07-.76.34-.26.27-1 1-.98 2.43.02 1.43 1.03 2.81 1.18 3 .15.19 2.03 3.1 4.93 4.23.69.3 1.23.48 1.65.61.69.22 1.32.19 1.82.12.56-.08 1.65-.67 1.88-1.32.23-.65.23-1.2.16-1.32-.07-.12-.25-.19-.53-.33z" />
+                              </svg>
+                            </a>
+                          )}
+                        <button
+                          onClick={handleDeletePendaftar}
+                          className="p-2 rounded-full hover:bg-red-100 transition cursor-pointer group"
+                          title="Hapus data peserta"
+                        >
+                          <svg
+                            className="w-5 h-5 text-red-600 group-hover:text-red-800"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth="2"
+                              d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
+                            />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                       {requiredFields.map((field) => (
@@ -379,8 +521,29 @@ export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
                   </button>
                   <button
                     type="button"
-                    onClick={() => setShowApproveModal(true)}
-                    className="w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 bg-green-600 text-base font-medium text-white hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 sm:w-auto sm:text-sm"
+                    onClick={() => {
+                      if (!isDataComplete()) {
+                        Swal.fire({
+                          title: "Data Tidak Lengkap",
+                          text: getMissingDataDescription(),
+                          icon: "warning",
+                          confirmButtonText: "OK",
+                        });
+                        return;
+                      }
+                      setShowApproveModal(true);
+                    }}
+                    disabled={!isDataComplete()}
+                    className={`w-full inline-flex justify-center rounded-md border border-transparent shadow-sm px-4 py-2 text-base font-medium focus:outline-none focus:ring-2 focus:ring-offset-2 sm:w-auto sm:text-sm ${
+                      isDataComplete()
+                        ? "bg-green-600 text-white hover:bg-green-700 focus:ring-green-500"
+                        : "bg-gray-400 text-gray-200 cursor-not-allowed"
+                    }`}
+                    title={
+                      !isDataComplete()
+                        ? getMissingDataDescription()
+                        : "Terima peserta didik"
+                    }
                   >
                     Terima Peserta Didik
                   </button>
@@ -472,6 +635,14 @@ export default function DetailModal({ isOpen, onClose, data, onStatusChange }) {
           </div>
         </div>
       )}
+
+      {/* Modal Edit Data */}
+      <DetailModalEdit
+        isOpen={showEditModal}
+        onClose={() => setShowEditModal(false)}
+        data={data}
+        onStatusChange={onStatusChange}
+      />
     </>
   );
 }
