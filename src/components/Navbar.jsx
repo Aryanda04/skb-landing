@@ -118,6 +118,12 @@ const Navbar = ({ forceScrolled = false }) => {
               <div className="absolute left-0 mt-0 pt-5 w-48 hidden group-hover:block">
                 <div className="bg-white rounded-md shadow-lg py-2 border border-gray-200">
                   <Link
+                    href="/daftar-ulang"
+                    className="block px-4 py-2 text-gray-800 hover:bg-gray-100 font-semibold"
+                  >
+                    Daftar Ulang
+                  </Link>
+                  <Link
                     href="/ppdb"
                     className="block px-4 py-2 text-gray-800 hover:bg-gray-100"
                   >
@@ -200,6 +206,13 @@ const Navbar = ({ forceScrolled = false }) => {
             <div className="px-4 py-2">
               <div className="font-medium text-gray-800 mb-2">PPDB</div>
               <div className="pl-4 space-y-2">
+                <Link
+                  href="/daftar-ulang"
+                  className="block text-gray-600 hover:text-[#2563eb] font-semibold"
+                  onClick={() => setIsDropdownOpen(false)}
+                >
+                  Daftar Ulang
+                </Link>
                 <Link
                   href="/ppdb"
                   className="block text-gray-600 hover:text-[#2563eb]"

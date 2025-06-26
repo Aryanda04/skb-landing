@@ -27,6 +27,7 @@ export default function Sidebar() {
           path: "/admin/pendaftar",
         },
         { name: "Peserta Diterima", key: "diterima", path: "/admin/pendaftar" },
+        { name: "Daftar Ulang", key: "daftarUlang", path: "/admin/pendaftar" },
       ],
     },
     {

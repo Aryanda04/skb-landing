@@ -5,6 +5,7 @@ import { toast } from "react-toastify";
 import DetailModal from "@/components/admin/pendaftar/DetailModal";
 import Swal from "sweetalert2";
 import { useAdmin } from "@/components/admin/AdminContext";
+import DaftarUlangTable from "@/components/admin/DaftarUlangTable";
 
 const PAGE_SIZE_OPTIONS = [5, 10, 20, 50];
 const PAKET_OPTIONS = ["PAKET A", "PAKET B", "PAKET C"];
@@ -44,9 +45,12 @@ export default function PendaftarPage() {
     useState(false);
   const statusDropdownRefNonApproved = useRef(null);
   const statusDropdownRefApproved = useRef(null);
+  const [daftarUlang, setDaftarUlang] = useState([]);
+  const [isLoadingDaftarUlang, setIsLoadingDaftarUlang] = useState(true);
 
   useEffect(() => {
     fetchPendaftar();
+    fetchDaftarUlang();
   }, []);
 
   // Close dropdown on outside click (untuk kedua tabel dan status)
@@ -109,6 +113,23 @@ export default function PendaftarPage() {
       console.error("Error fetching pendaftar:", error);
     } finally {
       setIsLoading(false);
+    }
+  };
+
+  const fetchDaftarUlang = async () => {
+    try {
+      const response = await fetch("/api/daftar-ulang");
+      const data = await response.json();
+      if (data.success) {
+        setDaftarUlang(data.data);
+      } else {
+        throw new Error(data.message);
+      }
+    } catch (error) {
+      toast.error("Gagal mengambil data daftar ulang");
+      console.error("Error fetching daftar ulang:", error);
+    } finally {
+      setIsLoadingDaftarUlang(false);
     }
   };
 
@@ -411,11 +432,28 @@ export default function PendaftarPage() {
     );
   }
 
+  if (activeSubMenu === "daftarUlang") {
+    return (
+      <div className="space-y-6">
+        <h1 className="text-2xl font-semibold text-gray-900">Daftar Ulang</h1>
+        <DaftarUlangTable
+          daftarUlang={daftarUlang}
+          isLoading={isLoadingDaftarUlang}
+          onDelete={fetchDaftarUlang}
+        />
+      </div>
+    );
+  }
+
   return (
     <div className="space-y-6">
       <h1 className="text-2xl font-semibold text-gray-900">
         {activeSubMenu === "pendaftar"
           ? "Daftar Pendaftar"
+          : activeSubMenu === "diterima"
+          ? "Peserta Diterima"
+          : activeSubMenu === "daftarUlang"
+          ? "Daftar Ulang"
           : "Peserta Diterima"}
       </h1>
 
